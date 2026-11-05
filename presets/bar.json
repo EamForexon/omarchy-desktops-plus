@@ -1,0 +1,71 @@
+{
+  "id": "desktops-plus.bar",
+  "centerAnchor": "desktops-plus.workspaces",
+  "position": "top",
+  "transparent": false,
+  "layout": {
+    "center": [
+      {
+        "alwaysShow": true,
+        "id": "omarchy.indicators"
+      },
+      {
+        "id": "desktops-plus.workspaces"
+      },
+      {
+        "id": "desktops-plus.tray"
+      },
+      {
+        "id": "omarchy.agents"
+      },
+      {
+        "id": "omarchy.bluetooth"
+      },
+      {
+        "id": "omarchy.network"
+      },
+      {
+        "id": "desktops-plus.audio"
+      },
+      {
+        "id": "omarchy.monitor"
+      },
+      {
+        "id": "desktops-plus.system-update"
+      }
+    ],
+    "left": [
+      {
+        "format": "dddd HH:mm:ss",
+        "formatAlt": "d MMMM 'W'ww yyyy",
+        "id": "desktops-plus.clock",
+        "verticalFormat": "HH\n—\nmm"
+      },
+      {
+        "id": "desktops-plus.weather"
+      }
+    ],
+    "right": [
+      {
+        "id": "desktops-plus.keyboard-layout"
+      },
+      {
+        "id": "desktops-plus.system-stats"
+      },
+      {
+        "id": "omarchy.power"
+      }
+    ]
+  },
+  "secondaryLayout": {
+    "left": [
+      "desktops-plus.clock"
+    ],
+    "center": [
+      "desktops-plus.workspaces"
+    ],
+    "right": [
+      "desktops-plus.system-stats"
+    ]
+  }
+}

@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy"
+mkdir -p "$cache_dir"
+state_file="$cache_dir/system-stats-cpu"
+
+read -r _ user nice system idle iowait irq softirq steal guest guest_nice < /proc/stat
+total=$((user + nice + system + idle + iowait + irq + softirq + steal))
+idle_total=$((idle + iowait))
+cpu_usage="--"
+
+if [[ -r "$state_file" ]]; then
+  read -r previous_total previous_idle < "$state_file"
+  total_delta=$((total - previous_total))
+  idle_delta=$((idle_total - previous_idle))
+  if (( total_delta > 0 )); then
+    cpu_usage=$(((total_delta - idle_delta) * 100 / total_delta))
+  fi
+fi
+
+temporary_state="$state_file.$$"
+printf '%s %s\n' "$total" "$idle_total" > "$temporary_state"
+mv "$temporary_state" "$state_file"
+
+millidegrees() { awk '{printf "%.0f", $1 / 1000}' "$1"; }
+
+# CPU package temperature: AMD (k10temp Tctl, zenpower Tdie), Intel (coretemp
+# "Package id 0"), then any x86_pkg_temp thermal zone.
+cpu_temperature="--"
+for hwmon in /sys/class/hwmon/hwmon*; do
+  [[ -r "$hwmon/name" ]] || continue
+  case "$(<"$hwmon/name")" in
+  k10temp | zenpower | coretemp) ;;
+  *) continue ;;
+  esac
+  for label in "$hwmon"/temp*_label; do
+    [[ -r "$label" ]] || continue
+    case "$(<"$label")" in
+    Tctl | Tdie | "Package id 0") ;;
+    *) continue ;;
+    esac
+    input="${label%_label}_input"
+    if [[ -r "$input" ]]; then
+      cpu_temperature=$(millidegrees "$input")
+      break 2
+    fi
+  done
+done
+if [[ "$cpu_temperature" == "--" ]]; then
+  for zone in /sys/class/thermal/thermal_zone*; do
+    [[ -r "$zone/type" && "$(<"$zone/type")" == "x86_pkg_temp" && -r "$zone/temp" ]] || continue
+    cpu_temperature=$(millidegrees "$zone/temp")
+    break
+  done
+fi
+
+# GPU: NVIDIA through nvidia-smi, AMD through amdgpu's sysfs, otherwise "--".
+gpu_name="--" gpu_usage="--" gpu_temperature="--" gpu_power="--" gpu_power_limit="--"
+gpu_fan="--" gpu_clock="--" gpu_memory_clock="--"
+gpu_memory_used_gib="--" gpu_memory_total_gib="--" gpu_memory_usage="--"
+nvidia=""
+command -v nvidia-smi >/dev/null && nvidia=$(nvidia-smi --query-gpu=name,utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw,power.limit,fan.speed,clocks.gr,clocks.mem --format=csv,noheader,nounits 2>/dev/null | head -n1 | sed 's/,[[:space:]]*/,/g') || nvidia=""
+if [[ -n "$nvidia" ]]; then
+  IFS=, read -r gpu_name gpu_usage gpu_temperature gpu_memory_used gpu_memory_total gpu_power gpu_power_limit gpu_fan gpu_clock gpu_memory_clock <<<"$nvidia"
+  gpu_name=${gpu_name#NVIDIA }
+  gpu_name=${gpu_name#GeForce }
+  gpu_power=$(awk -v w="$gpu_power" 'BEGIN { printf "%.0f", w }')
+  gpu_power_limit=$(awk -v w="$gpu_power_limit" 'BEGIN { printf "%.0f", w }')
+  gpu_memory_used_gib=$(awk -v mib="$gpu_memory_used" 'BEGIN { printf "%.1f", mib / 1024 }')
+  gpu_memory_total_gib=$(awk -v mib="$gpu_memory_total" 'BEGIN { printf "%.1f", mib / 1024 }')
+  (( gpu_memory_total > 0 )) && gpu_memory_usage=$((gpu_memory_used * 100 / gpu_memory_total))
+else
+  for device in /sys/class/drm/card*/device; do
+    [[ -r "$device/gpu_busy_percent" ]] || continue
+    gpu_usage=$(<"$device/gpu_busy_percent")
+    gpu_name="Radeon"
+    if [[ -r "$device/mem_info_vram_used" && -r "$device/mem_info_vram_total" ]]; then
+      vram_used=$(<"$device/mem_info_vram_used")
+      vram_total=$(<"$device/mem_info_vram_total")
+      gpu_memory_used_gib=$(awk -v b="$vram_used" 'BEGIN { printf "%.1f", b / 1073741824 }')
+      gpu_memory_total_gib=$(awk -v b="$vram_total" 'BEGIN { printf "%.1f", b / 1073741824 }')
+      (( vram_total > 0 )) && gpu_memory_usage=$((vram_used * 100 / vram_total))
+    fi
+    for hwmon in "$device"/hwmon/hwmon*; do
+      [[ -r "$hwmon/temp1_input" ]] && gpu_temperature=$(millidegrees "$hwmon/temp1_input")
+      for power in "$hwmon/power1_average" "$hwmon/power1_input"; do
+        [[ -r "$power" ]] && { gpu_power=$(awk '{printf "%.0f", $1 / 1000000}' "$power"); break; }
+      done
+      [[ -r "$hwmon/power1_cap" ]] && gpu_power_limit=$(awk '{printf "%.0f", $1 / 1000000}' "$hwmon/power1_cap")
+      [[ -r "$hwmon/pwm1" ]] && gpu_fan=$(awk '{printf "%.0f", $1 * 100 / 255}' "$hwmon/pwm1")
+      [[ -r "$hwmon/freq1_input" ]] && gpu_clock=$(awk '{printf "%.0f", $1 / 1000000}' "$hwmon/freq1_input")
+      [[ -r "$hwmon/freq2_input" ]] && gpu_memory_clock=$(awk '{printf "%.0f", $1 / 1000000}' "$hwmon/freq2_input")
+    done
+    break
+  done
+fi
+
+cpu_name=$(awk -F': ' '/^model name/ { print $2; exit }' /proc/cpuinfo)
+cpu_name=${cpu_name#AMD }
+cpu_name=${cpu_name#Intel(R) Core(TM) }
+cpu_name=${cpu_name% *-Core Processor}
+cpu_threads=$(nproc)
+read -r cpu_frequency cpu_frequency_max < <(
+  awk '/^cpu MHz/ { sum += $4; count++; if ($4 > max) max = $4 } END { printf "%.2f %.2f\n", sum / count / 1000, max / 1000 }' /proc/cpuinfo
+)
+read -r load_1 load_5 load_15 _ < /proc/loadavg
+
+read -r memory_total memory_available swap_total swap_free < <(
+  awk '/^MemTotal:/ { total = $2 } /^MemAvailable:/ { available = $2 } /^SwapTotal:/ { swap = $2 } /^SwapFree:/ { swap_free = $2 } END { print total, available, swap, swap_free }' /proc/meminfo
+)
+memory_used=$((memory_total - memory_available))
+memory_usage=$((memory_used * 100 / memory_total))
+memory_used_gib=$(awk -v kib="$memory_used" 'BEGIN { printf "%.1f", kib / 1048576 }')
+memory_total_gib=$(awk -v kib="$memory_total" 'BEGIN { printf "%.1f", kib / 1048576 }')
+swap_used_gib=$(awk -v kib="$((swap_total - swap_free))" 'BEGIN { printf "%.1f", kib / 1048576 }')
+swap_total_gib=$(awk -v kib="$swap_total" 'BEGIN { printf "%.1f", kib / 1048576 }')
+
+read -r disk_total disk_used disk_usage < <(
+  df -B1 --output=size,used,pcent / | awk 'NR == 2 { gsub(/%/, "", $3); printf "%.0f %.0f %s\n", $1 / 1073741824, $2 / 1073741824, $3 }'
+)
+
+# Written once by root (see root-sensors-setup); RAM speed is fixed while the system runs.
+ram_speed="--"
+[[ -r "$cache_dir/ram-speed" ]] && read -r ram_speed < "$cache_dir/ram-speed"
+
+disk_temperature="--"
+for hwmon in /sys/class/hwmon/hwmon*; do
+  [[ -r "$hwmon/name" && "$(<"$hwmon/name")" == "nvme" && -r "$hwmon/temp1_input" ]] || continue
+  disk_temperature=$(awk '{printf "%.0f", $1 / 1000}' "$hwmon/temp1_input")
+  break
+done
+
+# Whole-system draw is an estimate: measured CPU package (RAPL) + GPU, plus the
+# rest of the board, scaled by PSU efficiency. RAPL needs
+# root-sensors-setup (udev rule); without it CPU power follows usage.
+rest_watts=35
+psu_efficiency=0.88
+rapl=/sys/class/powercap/intel-rapl:0/energy_uj
+cpu_power=""
+if [[ -r "$rapl" ]]; then
+  energy=$(<"$rapl")
+  now=$(date +%s%N)
+  rapl_state="$cache_dir/system-stats-rapl"
+  if [[ -r "$rapl_state" ]]; then
+    read -r previous_energy previous_now < "$rapl_state"
+    if (( energy > previous_energy && now > previous_now )); then
+      cpu_power=$(awk -v e="$((energy - previous_energy))" -v t="$((now - previous_now))" 'BEGIN { printf "%.0f", e * 1000 / t }')
+    fi
+  fi
+  printf '%s %s\n' "$energy" "$now" > "$rapl_state.$$"
+  mv "$rapl_state.$$" "$rapl_state"
+fi
+if [[ -z "$cpu_power" ]]; then
+  cpu_power=$(awk -v u="${cpu_usage//--/0}" 'BEGIN { printf "%.0f", 20 + u * 0.68 }')
+fi
+system_power=$(awk -v c="$cpu_power" -v g="${gpu_power//--/0}" -v r="$rest_watts" -v e="$psu_efficiency" 'BEGIN { printf "%.0f", (c + g + r) / e }')
+
+uptime=$(awk '{ s = int($1); d = int(s / 86400); h = int(s % 86400 / 3600); m = int(s % 3600 / 60); if (d > 0) printf "%dd %dh", d, h; else printf "%dh %dm", h, m }' /proc/uptime)
+
+printf '{"cpuUsage":"%s","cpuTemp":"%s","gpuUsage":"%s","gpuTemp":"%s","ramUsage":"%s","ramUsed":"%s","ramTotal":"%s",' \
+  "$cpu_usage" "$cpu_temperature" "$gpu_usage" "$gpu_temperature" "$memory_usage" \
+  "$memory_used_gib" "$memory_total_gib"
+printf '"cpuName":"%s","cpuThreads":"%s","cpuFreq":"%s","cpuFreqMax":"%s","load1":"%s","load5":"%s","load15":"%s",' \
+  "$cpu_name" "$cpu_threads" "$cpu_frequency" "$cpu_frequency_max" "$load_1" "$load_5" "$load_15"
+printf '"gpuName":"%s","vramUsed":"%s","vramTotal":"%s","vramUsage":"%s","gpuPower":"%s","gpuPowerLimit":"%s","gpuFan":"%s","gpuClock":"%s","gpuMemClock":"%s",' \
+  "$gpu_name" "$gpu_memory_used_gib" "$gpu_memory_total_gib" "$gpu_memory_usage" "$gpu_power" "$gpu_power_limit" "$gpu_fan" "$gpu_clock" "$gpu_memory_clock"
+printf '"swapUsed":"%s","swapTotal":"%s","diskUsed":"%s","diskTotal":"%s","diskUsage":"%s","diskTemp":"%s","uptime":"%s","ramSpeed":"%s","cpuPower":"%s","systemPower":"%s"}\n' \
+  "$swap_used_gib" "$swap_total_gib" "$disk_used" "$disk_total" "$disk_usage" "$disk_temperature" "$uptime" "$ram_speed" "$cpu_power" "$system_power"

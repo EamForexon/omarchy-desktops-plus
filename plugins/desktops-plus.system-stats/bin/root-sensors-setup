@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# One-time root setup for system-stats. Run with sudo.
+#  - caches the configured RAM speed (dmidecode needs root; it doesn't change at runtime)
+#  - makes the CPU RAPL energy counter readable now and on every boot
+set -euo pipefail
+user="${SUDO_USER:-$USER}"
+user_home=$(getent passwd "$user" | cut -d: -f6)
+cache="$user_home/.cache/omarchy/ram-speed"
+mkdir -p "$(dirname "$cache")"
+dmidecode -t 17 | awk -F': ' '/Configured Memory Speed:/ && $2 ~ /[0-9]/ { split($2, a, " "); print a[1]; exit }' > "$cache"
+chown "$user:" "$cache"
+echo "RAM: $(<"$cache") MT/s"
+
+cat > /etc/udev/rules.d/90-rapl-readable.rules <<'RULE'
+SUBSYSTEM=="powercap", ACTION=="add", RUN+="/bin/chmod 0444 /sys%p/energy_uj"
+RULE
+chmod 0444 /sys/class/powercap/intel-rapl:*/energy_uj
+echo "RAPL: readable"

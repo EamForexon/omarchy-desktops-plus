@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "desktops-plus.bar",
+  "name": "Desktops+ Bar",
+  "version": "1.0.0",
+  "author": "EamForexon",
+  "description": "Status bar with widgets",
+  "kinds": [
+    "bar"
+  ],
+  "entryPoints": {
+    "bar": "Bar.qml"
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.bar"
+  }
+}

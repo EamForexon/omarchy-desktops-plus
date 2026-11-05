@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "desktops-plus.system-update",
+  "name": "Desktops+ Omarchy update",
+  "version": "1.0.0",
+  "author": "EamForexon",
+  "description": "Indicates available Omarchy updates",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "SystemUpdate.qml"
+  },
+  "barWidget": {
+    "displayName": "Omarchy update",
+    "description": "Indicates available Omarchy updates",
+    "category": "System",
+    "allowMultiple": false
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.system-update"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "desktops-plus.workspaces",
+  "name": "Omarchy Desktops+",
+  "version": "1.0.0",
+  "author": "EamForexon",
+  "description": "Per-monitor workspace indicators, workspaces that stay on their monitor, and an overview of every workspace",
+  "kinds": [
+    "bar-widget",
+    "service",
+    "overlay"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "barWidget": "Workspaces.qml",
+    "service": "Service.qml",
+    "overlay": "Overview.qml"
+  },
+  "barWidget": {
+    "displayName": "Desktops+",
+    "description": "Workspace numbers, marked per monitor",
+    "category": "Compositor",
+    "defaultSection": "center",
+    "allowMultiple": false
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.workspaces"
+  }
+}
