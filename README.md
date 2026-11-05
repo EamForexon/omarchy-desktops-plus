@@ -34,9 +34,16 @@ Each monitor's bar marks workspaces relative to *that* monitor:
   Fullscreen workspaces show a minimap of the windows behind them, with the fullscreen app's own
   tile hatched.
 
-![Overview with osu! fullscreen](docs/overview-panel.png)
+![Overview on a 2560×1440 monitor](docs/overview-panel.png)
 
-![Overview over the desktop](docs/overview.jpg)
+Above: side-by-side tiles (1, 5), a three-way split (7), and osu! fullscreen (3) with
+the minimap of the terminal and browser behind it. Each monitor gets its own overview; on a
+vertical 1080×1920 monitor the cards follow its proportions:
+
+<img src="docs/overview-vertical.png" alt="Overview on a vertical monitor" width="320">
+
+Icons come from [Simple Icons](https://simpleicons.org): the app itself, what's running inside a
+terminal (btop, nvim…), or the site named in a browser tab's title (YouTube, Hyprland…), falling back to the browser.
 
 ### Keybindings
 

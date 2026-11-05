@@ -179,6 +179,7 @@ Item {
     "Code - OSS", "Visual Studio Code", "Claude Code",
     "Godot Engine", "Godot", "Discord", "Vesktop", "Spotify", "Obsidian"
   ]
+  readonly property var terminalTitles: ["foot", "alacritty", "kitty", "ghostty", "wezterm"]
   // Apps whose useful part is the last segment, e.g. "main.tscn - MyGame - Godot Engine".
   readonly property var lastSegmentClasses: ["godot"]
   readonly property var separator: /\s+[—–\-|·:]\s+/
@@ -213,6 +214,10 @@ Item {
     }
 
     if (!title) title = initial || c.class || ""
+    // Terminals that don't set a title just say "foot"; the app id says more
+    // (org.omarchy.btop -> btop).
+    if (root.terminalTitles.indexOf(title.toLowerCase()) !== -1 && c.class && c.class.toLowerCase() !== title.toLowerCase())
+      title = String(c.class).replace(/^.*\./, "")
     return title.replace(/^\*\s*|\s*\(\*\)$/g, "")
   }
 
