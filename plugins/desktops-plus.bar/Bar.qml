@@ -57,6 +57,9 @@ Item {
   // `bar.primaryMonitor` names the primary output; unset, it's the top-left one.
   property string primaryMonitor: ""
   property var secondaryLayout: null
+  // Desktops+: `bar.locked` freezes the layout — no dragging widgets around and
+  // no dragging the bar to another edge. The bar-lock widget toggles it.
+  property bool layoutLocked: false
   property bool requestedTransparent: false
   property bool useTransparentForeground: false
   property bool transparent: false
@@ -606,6 +609,7 @@ Item {
     centerAnchor = Util.canonicalWidgetId(config.centerAnchor || "")
     primaryMonitor = String(config.primaryMonitor || "")
     secondaryLayout = Util.isPlainObject(config.secondaryLayout) ? config.secondaryLayout : null
+    layoutLocked = config.locked === true
 
     // layoutEntries feeds plain JS arrays to the module Repeaters, and QML
     // cannot diff those: reassigning layoutConfig rebuilds every widget on
@@ -920,8 +924,17 @@ Item {
     return true
   }
 
+  function setLayoutLocked(locked) {
+    if (!root.shell || typeof root.shell.mutateShellConfig !== "function") return
+    root.shell.mutateShellConfig(function(config) {
+      if (!Util.isPlainObject(config.bar)) config.bar = {}
+      config.bar.locked = locked === true
+    })
+  }
+
   function dropBarModule(source, toRegion, beforeName) {
     if (!source || !source.region || !source.moduleName || !toRegion) return false
+    if (root.layoutLocked) return false
     if (source.region === toRegion && source.moduleName === beforeName) return false
     if (!root.shell || typeof root.shell.mutateShellConfig !== "function") return false
 
@@ -1182,6 +1195,15 @@ Item {
     running: root.tooltipShown
     repeat: true
     onTriggered: if (!root.targetTooltipHovered(root.tooltipTarget)) root.hideTooltip(root.tooltipTarget)
+  }
+
+  // Desktops+: the bar-lock widget only gets the plugin bar API, so it flips
+  // the lock through here (`omarchy-shell desktops-plus.bar toggleLock`).
+  IpcHandler {
+    target: "desktops-plus.bar"
+
+    function toggleLock(): void { root.setLayoutLocked(!root.layoutLocked) }
+    function setLocked(locked: bool): void { root.setLayoutLocked(locked) }
   }
 
   // Presence of the `bar-off` flag = bar hidden. Watching the parent toggles
@@ -1711,7 +1733,7 @@ Item {
     pressAndHoldInterval: 200
 
     function startDrag(x, y) {
-      if (dragging) return
+      if (dragging || root.layoutLocked) return
       dragging = true
       root.beginBarMove(root.targetWindow(gestureArea))
       var scenePoint = gestureArea.mapToItem(null, x, y)
@@ -1974,7 +1996,7 @@ Item {
       property bool suppressClick: false
       property real pressedX: 0
       property real pressedY: 0
-      readonly property bool canReorder: root.shell && typeof root.shell.mutateShellConfig === "function"
+      readonly property bool canReorder: !root.layoutLocked && root.shell && typeof root.shell.mutateShellConfig === "function"
       readonly property real dragThreshold: Style.space(4)
 
       anchors.fill: parent

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "desktops-plus.bar-lock",
+  "name": "Desktops+ Bar lock",
+  "version": "1.0.0",
+  "author": "EamForexon",
+  "description": "Locks the bar layout so widgets can't be dragged",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarLock.qml"
+  },
+  "barWidget": {
+    "displayName": "Bar lock",
+    "description": "Locks the bar layout so widgets can't be dragged",
+    "category": "Status",
+    "allowMultiple": false
+  }
+}

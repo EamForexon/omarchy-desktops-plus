@@ -77,6 +77,8 @@ Omarchy's bar with two additions in `~/.config/omarchy/shell.json`:
   the main `layout`). Leave it out to get the full bar on every monitor.
 - `primaryMonitor`: the output that gets the full bar (`hyprctl monitors` lists names). Leave it
   out to use the top-left monitor.
+- `locked`: `true` stops widgets from being dragged around and the bar from being dragged to
+  another edge. The `desktops-plus.bar-lock` padlock toggles it.
 
 The side groups of the center section are also centered between the bar edge and the anchor
 widget, instead of hugging it.
@@ -91,6 +93,7 @@ widget, instead of hugging it.
 | `desktops-plus.audio` | Changing the output moves playing streams along, except voice chat apps (Vesktop, Discord), which stay put. Edit `keep_apps` in `bin/output-set-default` |
 | `desktops-plus.tray` | Tray icons always shown instead of hidden behind a hover drawer |
 | `desktops-plus.keyboard-layout`, `.system-update` | Text at body size, like the rest of the bar |
+| `desktops-plus.bar-lock` | New: padlock next to the indicators that locks the bar layout |
 
 ## Install
 
